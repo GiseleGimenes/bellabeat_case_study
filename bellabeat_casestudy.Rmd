@@ -1,10 +1,15 @@
 ---
 title: "Bellabeat Case Study"
+knit: (function(input_file, encoding) {
+  out_dir <- 'docs';
+  rmarkdown::render(input_file,
+ encoding=encoding,
+ output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
 author: "Gisele"
 date: "8/17/2021"
 output: html_document
 ---
-
+ 
 ### Scenario
 
 Bellabeat is a high-tech company that manufactures health-focused smart products for women, they want analyze smart devices fitness data to gain insight into how consumers are already using their smart devices and how this trends can inform marketing strategy.

@@ -1,0 +1,197 @@
+---
+title: "Bellabeat Case Study"
+author: "Gisele"
+date: "8/17/2021"
+output: html_document
+---
+
+### Scenario
+
+Bellabeat is a high-tech company that manufactures health-focused smart products for women, they want analyze smart devices fitness data to gain insight into how consumers are already using their smart devices and how this trends can inform marketing strategy.
+
+
+### Ask
+
+##### Identifying Business Task  
+
+Search for users patterns of smart devices usage to identify opportunities for growth and get insights to guide marketing strategy based on trends in smart device usage.
+
+
+### Prepare
+
+##### Importing libraries:
+```{r libraries}
+library(readr)
+library(tidyverse)
+library(tidyr)
+```
+
+
+
+
+##### Importing data:
+
+For this project the data used is a public data set from FitBit Fitness Tracker Data. It's a data set from thirty FitBit users including minute-level output for physical activity, heart rate and sleep monitoring.
+
+
+```{r importing data}
+daily_activity <- read_csv("data/dailyActivity_merged.csv")
+
+daily_calories <- read_csv("data/dailyCalories_merged.csv")
+
+daily_sleep <- read_csv("data/sleepDay_merged.csv")
+
+weight_log <- read_csv("data/weightLogInfo_merged.csv")
+```
+
+
+
+### Process & Analyze Data
+
+#### 1. Checking the number of participants in each data set:
+
+```{r}
+n_distinct(daily_activity$Id)
+n_distinct(daily_sleep$Id)
+n_distinct(weight_log$Id)
+```
+
+
+There are 33 participants in the activity data set, 24 in the sleep and only 8 in the weight data set.   
+8 participants are not significant to take conclusions and make recommendations based on this data.
+
+
+#### 2. Checking the period of data sets:
+
+```{r}
+max(daily_activity$ActivityDate)
+min(daily_activity$ActivityDate)
+
+max(daily_sleep$SleepDay)
+min(daily_sleep$SleepDay)
+```
+
+
+With this validation I could see the activity and sleep data sets has the same period.
+
+
+#### 3. Merging and transforming data:
+
+##### Merging activity and sleep data sets on column "Id":
+
+```{r}
+daily_data <- merge(daily_activity, daily_sleep, by = c("Id")) %>%
+  drop_na()
+```
+
+
+##### Creating a data frame with the most important variables and standardizing column names:
+
+```{r}
+activity_data <- rename_with(daily_data, tolower) %>%
+  select(id, veryactiveminutes, fairlyactiveminutes, lightlyactiveminutes, sedentaryminutes, calories, totalminutesasleep, totaltimeinbed)
+```
+
+```{r echo=TRUE}
+head(activity_data)
+```
+
+
+##### Creating user categories 
+
+This segmentation, based on which activity type the users have more minutes, will be helpful to find patterns and to better visualize the data:
+
+```{r}
+user_type_data <- activity_data %>%
+  summarise(id, calories, totalminutesasleep,
+    user_type =
+      factor(case_when(
+      veryactiveminutes > mean(veryactiveminutes) & fairlyactiveminutes < mean(fairlyactiveminutes) & 
+      lightlyactiveminutes < mean(lightlyactiveminutes) & sedentaryminutes < mean(sedentaryminutes)~ "Very Active",
+      veryactiveminutes < mean(veryactiveminutes) & fairlyactiveminutes > mean(fairlyactiveminutes) & 
+        lightlyactiveminutes < mean(lightlyactiveminutes) & sedentaryminutes < mean(sedentaryminutes)~ "Fairly Active",
+      veryactiveminutes < mean(veryactiveminutes) & fairlyactiveminutes < mean(fairlyactiveminutes) & 
+        lightlyactiveminutes > mean(lightlyactiveminutes) & sedentaryminutes < mean(sedentaryminutes)~ "Lightly Active",
+      veryactiveminutes < mean(veryactiveminutes) & fairlyactiveminutes < mean(fairlyactiveminutes) & 
+        lightlyactiveminutes < mean(lightlyactiveminutes) & sedentaryminutes > mean(sedentaryminutes)~ "Sedentary"),
+      levels = c("Very Active", "Fairly Active", "Lightly Active", "Sedentary"))) %>%
+    drop_na(user_type) %>%
+  group_by(id)
+```
+
+
+##### Calculating average total hours asleep by user type
+
+This will be helpful to see the sleep behavior of each user type group:
+
+```{r}
+sleep_data <- user_type_data %>%
+  group_by(user_type) %>%
+  summarise(avg_minasleep=mean(totalminutesasleep), avg_minutes_asleep=round(avg_minasleep, digits = 2)) %>%
+  mutate(hours_asleep = avg_minutes_asleep/60) %>%
+  mutate(avg_hours_asleep = round(hours_asleep, digits = 2)) %>%
+  select(-avg_minasleep, -hours_asleep)
+```
+
+
+##### Calculating average calories burned by user type
+
+```{r}
+calories_data <- user_type_data %>%
+  group_by(user_type) %>%
+  summarise(avg_calories=mean(calories))
+```
+
+
+
+### Share
+
+With the table created for user type categories it's possible to visualize the user type distribution and calories burned  by user type:
+
+```{r}
+   ggplot(data = user_type_data) +
+    geom_bar(mapping = aes(x = user_type, fill = user_type)) +
+    labs(title = "User Type Distribution", x="User Type") +
+    theme(legend.position="none")
+```
+
+```{r}
+ggplot(data = calories_data, aes(x = user_type, y = avg_calories, fill = user_type)) +
+    geom_bar(stat = "identity") +
+    labs(title = "Calories Burned by Uber Type", x="User Type",y="Average Calories Burned") +
+    theme(legend.position="none")
+```
+
+
+##### Analysis:
+
+* The better part of users are lightly active or sedentary;
+* Even the Lightly Active is the biggest category, the Very Active were the ones with more calories burned in the period.
+* It's interesting the Sedentary group has a bit more calories burned than the Fairly Active. It could be related to the users weight or body fat %, but it's not possible to confirm once the weight data set has no sufficient data to take conclusions (only for 8 users).
+
+
+
+
+It will also be interesting to check the average hour asleep by user type:
+
+```{r}
+ggplot(data = sleep_data, aes(x = user_type, y = avg_hours_asleep, fill = user_type)) +
+    geom_bar(stat = "identity") +
+    labs(title="Hours Asleep by User Type", x="User Type", y="Average Hours Asleep") +
+    theme(legend.position="none")
+```
+
+##### Analysis:
+
+* The average hours asleep is similar to the four user categories, between 6 and 7 hours. 
+* Even if all categories have a good average daily time asleep, it is a bit under OMS daily recommendation, which is 8 hours.
+
+
+
+### Act
+
+After analyzing Fit Bit data sets I found some interesting insights to help guide Bellabeat marketing strategy:
+
+* Considering the better part of users are lightly active or sedentary, it would be interesting to have notifications on the wellness watch to stimulate daily exercise practice for at least 30 min, as the OMS recommendation;
+* A kind of "gamification" between the devices and the app for exercise goals achieved (active days, exercise duration, calories burned, etc) would be helpful to stimulate users to keep active;
+* The watch can also help users improve their sleep time to 8 hours a day, recommending a "time to bed" based on user sleep behavior history and the alarms setted.
